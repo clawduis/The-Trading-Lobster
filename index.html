@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Trading Lobster — Neural BTC Trading</title>
+  <meta name="description" content="A lobster's brain controls a live BTC trading bot on Hyperliquid. Real neural signals. Real trades. Real degenerate science." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #060608;
+      --surface:   #0e0e14;
+      --border:    #1a1a28;
+      --border2:   #252535;
+      --green:     #00ff88;
+      --green-dim: #00cc6a;
+      --green-glow:#00ff8830;
+      --red:       #ff3b5c;
+      --red-dim:   #cc2f4a;
+      --red-glow:  #ff3b5c28;
+      --cyan:      #00e5ff;
+      --cyan-glow: #00e5ff22;
+      --yellow:    #ffd166;
+      --text:      #e8e8f2;
+      --muted:     #5a5a7a;
+      --code-bg:   #09090f;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ─── SCANLINE OVERLAY ─── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 2px,
+        rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px
+      );
+    }
+
+    /* ─── NAV ─── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2.5rem; height: 60px;
+      background: rgba(6,6,8,0.9);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700; font-size: 0.95rem;
+      color: var(--green); text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+    .nav-logo .lobster-icon { font-size: 1.3rem; }
+
+    .nav-links { display: flex; align-items: center; gap: 2rem; list-style: none; }
+    .nav-links a {
+      color: var(--muted); text-decoration: none;
+      font-size: 0.85rem; font-weight: 500; transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--green); color: #000 !important;
+      padding: 7px 16px; border-radius: 7px;
+      font-weight: 700 !important; font-size: 0.82rem !important;
+      transition: opacity .2s !important; text-decoration: none;
+    }
+    .nav-cta:hover { opacity: .85; }
+
+    /* ─── HERO ─── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 100px 2rem 5rem;
+      position: relative; overflow: hidden;
+    }
+
+    .hero-grid {
+      position: absolute; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 70% 70% at 50% 40%, black 20%, transparent 100%);
+    }
+
+    .hero-glow-green {
+      position: absolute; top: 25%; left: 30%; transform: translate(-50%, -50%);
+      width: 500px; height: 300px;
+      background: radial-gradient(ellipse, var(--green-glow), transparent 70%);
+      filter: blur(60px); z-index: 0;
+    }
+    .hero-glow-red {
+      position: absolute; top: 25%; left: 70%; transform: translate(-50%, -50%);
+      width: 500px; height: 300px;
+      background: radial-gradient(ellipse, var(--red-glow), transparent 70%);
+      filter: blur(60px); z-index: 0;
+    }
+
+    .hero-content { position: relative; z-index: 1; max-width: 860px; }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 999px; padding: 5px 14px;
+      font-size: 0.75rem; font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--green); letter-spacing: 0.04em;
+      margin-bottom: 2.5rem;
+    }
+    .hero-badge .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.3; }
+    }
+
+    /* ─── OSCILLOSCOPE ─── */
+    .oscilloscope {
+      width: 340px; height: 100px;
+      background: var(--code-bg);
+      border: 1px solid var(--border2);
+      border-radius: 12px;
+      margin: 0 auto 2.5rem;
+      position: relative; overflow: hidden;
+    }
+    .oscilloscope canvas { width: 100%; height: 100%; }
+    .osc-label {
+      position: absolute; top: 6px; left: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem; color: var(--green); opacity: 0.7;
+    }
+    .osc-rate {
+      position: absolute; top: 6px; right: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem; color: var(--green);
+    }
+
+    h1 {
+      font-size: clamp(2.6rem, 6vw, 4.8rem);
+      font-weight: 900; letter-spacing: -0.04em; line-height: 1.0;
+      margin-bottom: 1.5rem;
+    }
+    h1 .green  { color: var(--green); }
+    h1 .red    { color: var(--red); }
+    h1 .yellow { color: var(--yellow); }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.15rem);
+      color: var(--muted); max-width: 620px;
+      margin: 0 auto 3rem; line-height: 1.75;
+    }
+
+    .hero-actions {
+      display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+      margin-bottom: 3.5rem;
+    }
+
+    .btn-green {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--green); color: #000;
+      padding: 14px 28px; border-radius: 10px;
+      font-weight: 700; font-size: 0.95rem; text-decoration: none;
+      transition: transform .2s, box-shadow .2s;
+      box-shadow: 0 0 24px var(--green-glow);
+    }
+    .btn-green:hover { transform: translateY(-2px); box-shadow: 0 0 48px var(--green-glow); }
+
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; color: var(--text);
+      padding: 14px 28px; border-radius: 10px;
+      border: 1px solid var(--border2);
+      font-weight: 600; font-size: 0.95rem; text-decoration: none;
+      transition: border-color .2s, background .2s;
+    }
+    .btn-ghost:hover { border-color: var(--green); background: var(--green-glow); }
+
+    /* ─── LIVE SIGNAL BAR ─── */
+    .signal-bar {
+      display: inline-flex; align-items: center; gap: 1.5rem;
+      background: var(--code-bg);
+      border: 1px solid var(--border2);
+      border-radius: 12px;
+      padding: 1rem 2rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+    }
+    .sig-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .sig-label { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
+    .sig-val { color: var(--green); font-weight: 700; font-size: 0.95rem; }
+    .sig-val.red { color: var(--red); }
+    .sig-val.yellow { color: var(--yellow); }
+    .sig-divider { width: 1px; height: 36px; background: var(--border2); }
+
+    /* ─── PIPELINE ─── */
+    #pipeline { padding: 6rem 2rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    .section-label {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--green); margin-bottom: 0.6rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .section-title {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800; letter-spacing: -0.03em; margin-bottom: 1rem;
+    }
+    .section-sub {
+      font-size: 1rem; color: var(--muted);
+      max-width: 560px; line-height: 1.75;
+    }
+
+    .pipeline-flow {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      margin-top: 3.5rem;
+      overflow-x: auto;
+      padding-bottom: 1rem;
+    }
+
+    .pipeline-step {
+      flex: 1; min-width: 140px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1.5rem 1.2rem;
+      position: relative;
+      transition: border-color .3s;
+    }
+    .pipeline-step:first-child { border-radius: 14px 0 0 14px; }
+    .pipeline-step:last-child  { border-radius: 0 14px 14px 0; }
+    .pipeline-step:not(:last-child)::after {
+      content: '→';
+      position: absolute; right: -14px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); font-size: 1.1rem; z-index: 2;
+      background: var(--bg); padding: 0 2px;
+    }
+    .pipeline-step:hover { border-color: var(--green); z-index: 1; }
+    .pipeline-step:hover .ps-icon { color: var(--green); }
+
+    .ps-icon { font-size: 1.6rem; margin-bottom: 0.6rem; color: var(--muted); transition: color .3s; }
+    .ps-name { font-weight: 700; font-size: 0.85rem; margin-bottom: 0.3rem; }
+    .ps-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+
+    /* ─── STATS ─── */
+    #stats { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 5rem 2rem; }
+
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 2rem; margin-top: 3rem;
+    }
+
+    .stat-card {
+      text-align: center;
+      padding: 2rem 1.5rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      transition: border-color .3s;
+    }
+    .stat-card:hover { border-color: var(--border2); }
+    .stat-num {
+      font-size: 2.4rem; font-weight: 900;
+      letter-spacing: -0.04em; margin-bottom: 0.4rem;
+    }
+    .stat-num.green  { color: var(--green); }
+    .stat-num.red    { color: var(--red); }
+    .stat-num.yellow { color: var(--yellow); }
+    .stat-num.cyan   { color: var(--cyan); }
+    .stat-label { font-size: 0.82rem; color: var(--muted); font-weight: 500; }
+
+    /* ─── CODE BLOCK ─── */
+    #quickstart { padding: 6rem 2rem; }
+    .code-window {
+      background: var(--code-bg);
+      border: 1px solid var(--border2);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-top: 3rem;
+      max-width: 780px;
+    }
+    .code-titlebar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .code-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .code-dot.red    { background: #ff5f57; }
+    .code-dot.yellow { background: #febc2e; }
+    .code-dot.green  { background: #28c840; }
+    .code-title { margin-left: 8px; font-size: 0.78rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+
+    .code-body {
+      padding: 1.6rem 2rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 2;
+      overflow-x: auto;
+    }
+    .code-body .comment { color: var(--muted); }
+    .code-body .cmd     { color: var(--green); }
+    .code-body .flag    { color: var(--yellow); }
+    .code-body .str     { color: var(--cyan); }
+    .code-body .prompt  { color: var(--muted); user-select: none; }
+
+    /* ─── RISK ─── */
+    #risk { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6rem 2rem; }
+
+    .risk-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem; margin-top: 3rem;
+    }
+
+    .risk-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.6rem;
+      transition: border-color .3s;
+    }
+    .risk-card:hover { border-color: var(--border2); }
+
+    .risk-header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 0.6rem;
+    }
+    .risk-icon { font-size: 1.3rem; }
+    .risk-title { font-weight: 700; font-size: 0.9rem; }
+    .risk-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.4rem; font-weight: 700;
+      color: var(--yellow); margin-bottom: 0.4rem;
+    }
+    .risk-desc { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+
+    /* ─── SCIENCE ─── */
+    #science { padding: 6rem 2rem; }
+
+    .science-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;
+      margin-top: 3.5rem; align-items: start;
+    }
+
+    @media (max-width: 768px) {
+      .science-grid { grid-template-columns: 1fr; }
+      .pipeline-flow { flex-direction: column; }
+      .pipeline-step:first-child { border-radius: 14px 14px 0 0; }
+      .pipeline-step:last-child  { border-radius: 0 0 14px 14px; }
+      .pipeline-step:not(:last-child)::after { content: '↓'; right: auto; left: 50%; top: auto; bottom: -16px; transform: translateX(-50%); }
+      .nav-links { display: none; }
+    }
+
+    .science-text h2 {
+      font-size: 2rem; font-weight: 800; letter-spacing: -0.03em;
+      margin-bottom: 1rem; line-height: 1.2;
+    }
+    .science-text p { color: var(--muted); line-height: 1.8; margin-bottom: 1rem; font-size: 0.95rem; }
+    .science-text a { color: var(--green); text-decoration: none; }
+    .science-text a:hover { text-decoration: underline; }
+
+    .stg-diagram {
+      background: var(--code-bg);
+      border: 1px solid var(--border2);
+      border-radius: 14px;
+      padding: 1.8rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 2;
+      color: var(--muted);
+    }
+    .stg-diagram .hl   { color: var(--green); font-weight: 700; }
+    .stg-diagram .hl2  { color: var(--cyan); }
+    .stg-diagram .hl3  { color: var(--yellow); }
+
+    /* ─── CTA ─── */
+    .cta-section {
+      text-align: center; padding: 6rem 2rem;
+      background: var(--bg);
+    }
+    .cta-section h2 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 900; letter-spacing: -0.04em; margin-bottom: 1rem;
+      line-height: 1.1;
+    }
+    .cta-section p { color: var(--muted); font-size: 1.05rem; margin-bottom: 2.5rem; }
+
+    /* ─── FOOTER ─── */
+    footer {
+      padding: 2rem 2.5rem;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem; color: var(--muted);
+    }
+    .footer-logo {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700; color: var(--green); text-decoration: none;
+    }
+    .footer-links { display: flex; gap: 1.5rem; }
+    .footer-links a { color: var(--muted); text-decoration: none; transition: color .2s; }
+    .footer-links a:hover { color: var(--text); }
+
+    /* ─── TICKER ─── */
+    .ticker {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .ticker-inner {
+      display: inline-block;
+      animation: ticker 30s linear infinite;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .ticker-inner span { margin: 0 3rem; }
+    .ticker-inner .up   { color: var(--green); }
+    .ticker-inner .down { color: var(--red); }
+    @keyframes ticker {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">
+    <span class="lobster-icon">🦞</span> TradingLobster
+  </a>
+  <ul class="nav-links">
+    <li><a href="#pipeline">Pipeline</a></li>
+    <li><a href="#science">Science</a></li>
+    <li><a href="#risk">Risk</a></li>
+    <li><a href="#quickstart">Quickstart</a></li>
+    <li><a href="https://github.com/clawduis/The-Trading-Lobster" target="_blank" class="nav-cta">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      GitHub
+    </a></li>
+  </ul>
+</nav>
+
+<!-- TICKER -->
+<div class="ticker" style="margin-top:60px;">
+  <div class="ticker-inner">
+    <span>🦞 LOBSTER SIGNAL: <span class="up">LONG</span></span>
+    <span>BTC/USDT <span class="up">+2.4%</span></span>
+    <span>SPIKE RATE: <span class="up">16.2 Hz</span></span>
+    <span>BURST SCORE: <span class="up">0.74</span></span>
+    <span>POSITION: <span class="up">LONG $50</span></span>
+    <span>UNREALIZED PNL: <span class="up">+$3.21</span></span>
+    <span>UPTIME: 04:12:38</span>
+    <span>DAILY PNL: <span class="up">+$18.40</span></span>
+    <span>WIN RATE: <span class="up">62%</span></span>
+    <span>🦞 LOBSTER SIGNAL: <span class="down">SHORT</span></span>
+    <span>BTC/USDT <span class="down">-1.1%</span></span>
+    <span>SPIKE RATE: <span class="down">3.8 Hz</span></span>
+    <span>BURST SCORE: <span class="down">0.18</span></span>
+    <span>POSITION: <span class="down">SHORT $50</span></span>
+    <span>🦞 LOBSTER SIGNAL: <span class="up">LONG</span></span>
+    <span>BTC/USDT <span class="up">+2.4%</span></span>
+    <span>SPIKE RATE: <span class="up">16.2 Hz</span></span>
+    <span>BURST SCORE: <span class="up">0.74</span></span>
+    <span>POSITION: <span class="up">LONG $50</span></span>
+    <span>UNREALIZED PNL: <span class="up">+$3.21</span></span>
+    <span>UPTIME: 04:12:38</span>
+    <span>DAILY PNL: <span class="up">+$18.40</span></span>
+    <span>WIN RATE: <span class="up">62%</span></span>
+    <span>🦞 LOBSTER SIGNAL: <span class="down">SHORT</span></span>
+    <span>BTC/USDT <span class="down">-1.1%</span></span>
+    <span>SPIKE RATE: <span class="down">3.8 Hz</span></span>
+    <span>BURST SCORE: <span class="down">0.18</span></span>
+    <span>POSITION: <span class="down">SHORT $50</span></span>
+  </div>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow-green"></div>
+  <div class="hero-glow-red"></div>
+  <div class="hero-content">
+
+    <div class="hero-badge">
+      <span class="dot"></span>
+      LIVE ON HYPERLIQUID &nbsp;·&nbsp; BTC PERPETUALS
+    </div>
+
+    <!-- Oscilloscope -->
+    <div class="oscilloscope">
+      <div class="osc-label">STG GANGLION · CH1</div>
+      <div class="osc-rate" id="osc-rate">14.2 Hz</div>
+      <canvas id="osc-canvas" width="680" height="200"></canvas>
+    </div>
+
+    <h1>
+      The lobster<br/>
+      <span class="green">goes long.</span>
+      <span class="red">Goes short.</span>
+    </h1>
+
+    <p class="hero-sub">
+      A live lobster's stomatogastric ganglion fires action potentials into
+      an electrode. Those spikes are filtered, classified, and wired directly
+      into a BTC perpetuals trading bot on Hyperliquid. No indicators.
+      No algorithms. Just a crustacean nervous system making financial decisions.
+    </p>
+
+    <div class="hero-actions">
+      <a href="https://github.com/clawduis/The-Trading-Lobster" target="_blank" class="btn-green">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        View on GitHub
+      </a>
+      <a href="#pipeline" class="btn-ghost">How it works ↓</a>
+    </div>
+
+    <!-- Live signal bar -->
+    <div class="signal-bar">
+      <div class="sig-item">
+        <span class="sig-label">Signal</span>
+        <span class="sig-val" id="live-signal">LONG</span>
+      </div>
+      <div class="sig-divider"></div>
+      <div class="sig-item">
+        <span class="sig-label">Spike Rate</span>
+        <span class="sig-val" id="live-rate">14.2 Hz</span>
+      </div>
+      <div class="sig-divider"></div>
+      <div class="sig-item">
+        <span class="sig-label">Burst Score</span>
+        <span class="sig-val" id="live-burst">0.72</span>
+      </div>
+      <div class="sig-divider"></div>
+      <div class="sig-item">
+        <span class="sig-label">Confidence</span>
+        <span class="sig-val" id="live-conf">0.81</span>
+      </div>
+      <div class="sig-divider"></div>
+      <div class="sig-item">
+        <span class="sig-label">Position</span>
+        <span class="sig-val" id="live-pos">LONG</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- PIPELINE -->
+<section id="pipeline">
+  <div class="container">
+    <p class="section-label">Architecture</p>
+    <h2 class="section-title">From neuron to trade in milliseconds</h2>
+    <p class="section-sub">Six stages. Every trade starts with a living neural circuit.</p>
+
+    <div class="pipeline-flow">
+      <div class="pipeline-step">
+        <div class="ps-icon">🦞</div>
+        <div class="ps-name">STG Ganglion</div>
+        <div class="ps-desc">Lobster stomatogastric ganglion. ~30 neurons. Pinned in Sylgard dish with oxygenated saline.</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="ps-icon">⚡</div>
+        <div class="ps-name">Electrodes</div>
+        <div class="ps-desc">0.001" tungsten microelectrodes on the lateral ventricular nerve. INA333 bio-amp, 50–500× gain.</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="ps-icon">🔬</div>
+        <div class="ps-name">Signal Filter</div>
+        <div class="ps-desc">Bandpass 300–3000 Hz + 60 Hz notch. Butterworth SOS filter. Stateful across chunks.</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="ps-icon">📊</div>
+        <div class="ps-name">Spike Detection</div>
+        <div class="ps-desc">MAD threshold detector. Refractory period enforced. Waveform extracted per spike.</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="ps-icon">🧠</div>
+        <div class="ps-name">Classifier</div>
+        <div class="ps-desc">Threshold or RandomForest ML. Features: spike rate, ISI, burst score, amplitude.</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="ps-icon">📈</div>
+        <div class="ps-name">Hyperliquid</div>
+        <div class="ps-desc">Market open/close via SDK. Cross-margin, configurable leverage, SL/TP auto-managed.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section id="stats">
+  <div class="container">
+    <p class="section-label">By the numbers</p>
+    <h2 class="section-title">Built for real signal, real trades</h2>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num green">30kHz</div>
+        <div class="stat-label">Sample Rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num cyan">~30</div>
+        <div class="stat-label">STG Neurons</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num yellow">5s</div>
+        <div class="stat-label">Feature Window</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num green">2.5%</div>
+        <div class="stat-label">Stop Loss</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num red">5%</div>
+        <div class="stat-label">Max Daily Drawdown</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num cyan">29</div>
+        <div class="stat-label">Source Files</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SCIENCE -->
+<section id="science">
+  <div class="container">
+    <div class="science-grid">
+      <div class="science-text">
+        <p class="section-label">The Biology</p>
+        <h2>Why a lobster?</h2>
+        <p>
+          The lobster's <strong>stomatogastric ganglion (STG)</strong> is one of the
+          most studied neural circuits in all of biology. It's been under investigation
+          since the 1970s. It has only ~30 neurons but generates complex, robust
+          rhythmic firing patterns — making it ideal for recording.
+        </p>
+        <p>
+          The STG controls the lobster's stomach muscles. When the lobster is
+          in an active, excited state, neurons fire in rapid bursts at 15–20 Hz.
+          When inhibited or resting, firing drops to 2–5 Hz. These two states
+          map cleanly to <span style="color:var(--green)">LONG</span> and
+          <span style="color:var(--red)">SHORT</span>.
+        </p>
+        <p>
+          The ganglion is dissected from the animal and kept alive <em>ex vivo</em>
+          in cold oxygenated saline for up to 12 hours — plenty of time to trade.
+        </p>
+        <p>
+          Reference:
+          <a href="https://app.jove.com/t/1207" target="_blank">JoVE STG Dissection Protocol →</a>
+        </p>
+      </div>
+      <div class="stg-diagram">
+        <div>┌─────────────────────────────────┐</div>
+        <div>│  <span class="hl">STOMATOGASTRIC GANGLION</span>       │</div>
+        <div>│  ~30 neurons · ex vivo prep      │</div>
+        <div>│                                  │</div>
+        <div>│  <span class="hl2">Active state</span>  (excited)        │</div>
+        <div>│  ▁▂█▁▁▁██▁▁█▁▁██▁▁▁█▁▁▁██▁      │</div>
+        <div>│  rate: <span class="hl">~16 Hz</span>  burst: <span class="hl">0.71</span>    │</div>
+        <div>│  → signal: <span class="hl">LONG 🟢</span>              │</div>
+        <div>│                                  │</div>
+        <div>│  <span class="hl3">Quiescent state</span> (inhibited)    │</div>
+        <div>│  ▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁      │</div>
+        <div>│  rate: <span class="hl3">~3 Hz</span>   burst: <span class="hl3">0.15</span>    │</div>
+        <div>│  → signal: <span style="color:var(--red)">SHORT 🔴</span>             │</div>
+        <div>│                                  │</div>
+        <div>│  Features extracted per window:  │</div>
+        <div>│  spike_rate · isi_cv · burst     │</div>
+        <div>│  amplitude_mean · isi_mean_ms    │</div>
+        <div>└─────────────────────────────────┘</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RISK -->
+<section id="risk">
+  <div class="container">
+    <p class="section-label">Risk Management</p>
+    <h2 class="section-title">The lobster doesn't know what Bitcoin is.</h2>
+    <p class="section-sub">That's why we built a full risk engine around it.</p>
+    <div class="risk-grid">
+      <div class="risk-card">
+        <div class="risk-header">
+          <span class="risk-icon">🛑</span>
+          <span class="risk-title">Daily Loss Halt</span>
+        </div>
+        <div class="risk-value">5%</div>
+        <div class="risk-desc">If the account drops more than 5% in a single day, all trading halts automatically until manual reset.</div>
+      </div>
+      <div class="risk-card">
+        <div class="risk-header">
+          <span class="risk-icon">📉</span>
+          <span class="risk-title">Stop Loss</span>
+        </div>
+        <div class="risk-value">2.5%</div>
+        <div class="risk-desc">Each position is automatically closed if unrealized loss exceeds 2.5% of entry price.</div>
+      </div>
+      <div class="risk-card">
+        <div class="risk-header">
+          <span class="risk-icon">📈</span>
+          <span class="risk-title">Take Profit</span>
+        </div>
+        <div class="risk-value">5%</div>
+        <div class="risk-desc">Positions are closed when unrealized gain hits 5%. The lobster doesn't get greedy.</div>
+      </div>
+      <div class="risk-card">
+        <div class="risk-header">
+          <span class="risk-icon">⏱️</span>
+          <span class="risk-title">Cooldown</span>
+        </div>
+        <div class="risk-value">5 min</div>
+        <div class="risk-desc">Minimum 5-minute cooldown between consecutive trades. Prevents rapid-fire signal noise from overtrading.</div>
+      </div>
+      <div class="risk-card">
+        <div class="risk-header">
+          <span class="risk-icon">💰</span>
+          <span class="risk-title">Position Cap</span>
+        </div>
+        <div class="risk-value">$500</div>
+        <div class="risk-desc">Hard maximum on open notional. Default trade size is $50. Configurable in config.yaml.</div>
+      </div>
+      <div class="risk-card">
+        <div class="risk-header">
+          <span class="risk-icon">🔒</span>
+          <span class="risk-title">Signal Confidence</span>
+        </div>
+        <div class="risk-value">60%</div>
+        <div class="risk-desc">Only trades when classifier confidence is above 60%. Ambiguous states result in HOLD — no action taken.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- QUICKSTART -->
+<section id="quickstart">
+  <div class="container">
+    <p class="section-label">Get Started</p>
+    <h2 class="section-title">Run it in 3 commands</h2>
+    <p class="section-sub">No hardware required to test. The mock reader generates synthetic neural signals to exercise the full pipeline.</p>
+
+    <div class="code-window">
+      <div class="code-titlebar">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
+        <span class="code-title">bash — The Trading Lobster</span>
+      </div>
+      <div class="code-body">
+        <div><span class="comment"># Clone and install</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">git clone</span> <span class="str">https://github.com/clawduis/The-Trading-Lobster.git</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">pip install</span> -r requirements.txt</div>
+        <div>&nbsp;</div>
+        <div><span class="comment"># Copy and fill in your Hyperliquid private key + wallet address</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">cp</span> .env.example .env</div>
+        <div>&nbsp;</div>
+        <div><span class="comment"># Test fully offline — synthetic signal, no trades</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">python main.py</span> <span class="flag">--mock --dry-run</span></div>
+        <div>&nbsp;</div>
+        <div><span class="comment"># Run on testnet with mock signal</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">python main.py</span> <span class="flag">--mock</span></div>
+        <div>&nbsp;</div>
+        <div><span class="comment"># Go live — real lobster, real trades</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">python main.py</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="container">
+    <h2>
+      Ready to let a<br/>
+      <span style="color:var(--green)">crustacean</span> trade your BTC?
+    </h2>
+    <p>Open source. Real hardware. Real trades. Truly unhinged science.</p>
+    <a href="https://github.com/clawduis/The-Trading-Lobster" target="_blank" class="btn-green" style="font-size:1rem;padding:16px 36px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      Clone the Repo
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <a class="footer-logo" href="#">🦞 The Trading Lobster</a>
+  <div class="footer-links">
+    <a href="https://github.com/clawduis/The-Trading-Lobster" target="_blank">GitHub</a>
+    <a href="#pipeline">Pipeline</a>
+    <a href="#science">Science</a>
+    <a href="#risk">Risk</a>
+  </div>
+  <div>Built with 🦞 and questionable judgment</div>
+</footer>
+
+<script>
+// ─── Oscilloscope ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('osc-canvas');
+const ctx    = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let phase = 0;
+let spikeQueue = [];
+let t = 0;
+let currentRate = 14.2;
+let targetRate  = 14.2;
+
+function scheduleSpike() {
+  const interval = 1000 / currentRate;
+  const jitter   = (Math.random() - 0.5) * interval * 0.4;
+  setTimeout(() => {
+    spikeQueue.push({ t: t, amp: 0.6 + Math.random() * 0.35 });
+    scheduleSpike();
+  }, Math.max(50, interval + jitter));
+}
+scheduleSpike();
+
+function drawOscilloscope() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#09090f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = '#1a1a28';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += W/8) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += H/4) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Signal
+  const isLong = currentRate > 9;
+  const lineColor = isLong ? '#00ff88' : '#ff3b5c';
+
+  ctx.beginPath();
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = lineColor;
+  ctx.shadowBlur = 6;
+
+  const WINDOW = 600;
+  for (let px = 0; px < W; px++) {
+    const sampleT = t - WINDOW + (px / W) * WINDOW;
+    let y = H / 2;
+
+    // Noise floor
+    y += (Math.sin(sampleT * 0.08 + phase) * 3
+        + Math.sin(sampleT * 0.13) * 2
+        + (Math.random() - 0.5) * 4);
+
+    // Spikes
+    for (const sp of spikeQueue) {
+      const dt = sampleT - sp.t;
+      if (dt >= 0 && dt < 30) {
+        const spike_y = sp.amp * H * 0.38 * Math.exp(-dt * 0.18) * Math.sin(dt * 0.5);
+        y -= spike_y;
+      }
+    }
+
+    if (px === 0) ctx.moveTo(px, y);
+    else ctx.lineTo(px, y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  t += 8;
+  // Keep only recent spikes
+  spikeQueue = spikeQueue.filter(sp => t - sp.t < 700);
+  phase += 0.02;
+
+  requestAnimationFrame(drawOscilloscope);
+}
+drawOscilloscope();
+
+// ─── Live signal simulator ────────────────────────────────────────────────────
+const signals = ['LONG', 'SHORT', 'HOLD'];
+let currentSignal = 'LONG';
+let stateTimer = 0;
+const STATE_DURATION = 12000; // ms
+
+function updateLiveSignal() {
+  stateTimer += 500;
+  if (stateTimer >= STATE_DURATION) {
+    stateTimer = 0;
+    const r = Math.random();
+    currentSignal = r < 0.45 ? 'LONG' : r < 0.80 ? 'SHORT' : 'HOLD';
+  }
+
+  const isLong  = currentSignal === 'LONG';
+  const isShort = currentSignal === 'SHORT';
+
+  if (isLong) {
+    targetRate = 13 + Math.random() * 6;
+  } else if (isShort) {
+    targetRate = 2 + Math.random() * 4;
+  } else {
+    targetRate = 6 + Math.random() * 5;
+  }
+
+  currentRate += (targetRate - currentRate) * 0.15;
+
+  const burst   = isLong  ? (0.6 + Math.random() * 0.35).toFixed(2)
+                : isShort ? (0.05 + Math.random() * 0.25).toFixed(2)
+                : (0.3 + Math.random() * 0.3).toFixed(2);
+  const conf    = isLong || isShort ? (0.60 + Math.random() * 0.35).toFixed(2) : (0.30 + Math.random() * 0.25).toFixed(2);
+  const sigColor = isLong ? 'green' : isShort ? 'red' : 'yellow';
+
+  const sigEl  = document.getElementById('live-signal');
+  const rateEl = document.getElementById('live-rate');
+  const burstEl= document.getElementById('live-burst');
+  const confEl = document.getElementById('live-conf');
+  const posEl  = document.getElementById('live-pos');
+  const oscRate= document.getElementById('osc-rate');
+
+  sigEl.textContent  = currentSignal;
+  sigEl.className    = `sig-val ${sigColor}`;
+  rateEl.textContent = `${currentRate.toFixed(1)} Hz`;
+  rateEl.className   = `sig-val ${sigColor}`;
+  burstEl.textContent= burst;
+  burstEl.className  = `sig-val ${sigColor}`;
+  confEl.textContent = conf;
+  posEl.textContent  = isLong ? 'LONG' : isShort ? 'SHORT' : 'FLAT';
+  posEl.className    = `sig-val ${sigColor}`;
+  oscRate.textContent= `${currentRate.toFixed(1)} Hz`;
+  oscRate.style.color= isLong ? 'var(--green)' : isShort ? 'var(--red)' : 'var(--yellow)';
+}
+
+setInterval(updateLiveSignal, 500);
+</script>
+</body>
+</html>
