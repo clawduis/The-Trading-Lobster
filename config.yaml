@@ -1,0 +1,65 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+#  The Trading Lobster — Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── Hardware ──────────────────────────────────────────────────────────────────
+hardware:
+  sample_rate: 30000          # Hz — must match Arduino/OpenBCI firmware setting
+  buffer_size: 32768          # ring buffer capacity in samples
+  read_chunk: 512             # samples read per serial batch
+  use_mock: false             # set true to run without physical hardware
+
+# ─── Signal Processing ─────────────────────────────────────────────────────────
+processing:
+  bandpass_low: 300           # Hz — lower cutoff (removes slow drift)
+  bandpass_high: 3000         # Hz — upper cutoff (above AP frequencies)
+  bandpass_order: 4           # Butterworth filter order
+  notch_freq: 60              # Hz — powerline noise (use 50 in Europe)
+  notch_quality: 30           # Q factor for notch filter
+
+  # Spike detection
+  spike_threshold_mad: 5.0   # threshold = N × median absolute deviation
+  refractory_ms: 1.0          # minimum ms between spikes (absolute refractory)
+  spike_window_ms: 1.5        # waveform window around each spike (±)
+
+  # Feature extraction window
+  window_size_sec: 5.0        # sliding window for feature computation
+  window_step_sec: 1.0        # step between windows (overlap = window - step)
+
+# ─── Classification ────────────────────────────────────────────────────────────
+classifier:
+  mode: "threshold"           # "threshold" | "ml"
+
+  threshold:
+    long_spike_rate: 14.0     # spikes/sec → LONG signal
+    short_spike_rate: 5.0     # spikes/sec → SHORT signal
+    long_burst_score: 0.65    # burst index → LONG reinforcement
+    short_burst_score: 0.30   # burst index → SHORT reinforcement
+    min_confidence: 0.60      # minimum confidence to act on signal
+
+  ml:
+    model_path: "classifier/models/lobster_model.pkl"
+    min_confidence: 0.70      # ML model probability threshold
+
+# ─── Trading ───────────────────────────────────────────────────────────────────
+trading:
+  coin: "BTC"
+  leverage: 3                 # applied on open (cross margin)
+  position_size_usd: 50.0     # USD notional per trade
+  slippage: 0.01              # 1% max slippage on market orders
+
+# ─── Risk Management ───────────────────────────────────────────────────────────
+risk:
+  max_daily_loss_pct: 0.05    # halt trading if daily drawdown > 5%
+  max_position_usd: 500.0     # hard cap on open notional
+  cooldown_seconds: 300       # minimum seconds between consecutive trades
+  stop_loss_pct: 0.025        # close position if unrealized loss > 2.5%
+  take_profit_pct: 0.05       # close position if unrealized gain > 5%
+  max_open_positions: 1       # only 1 active BTC position at a time
+
+# ─── Monitoring ────────────────────────────────────────────────────────────────
+monitoring:
+  log_level: "INFO"           # DEBUG | INFO | WARNING | ERROR
+  log_file: "logs/lobster_trader.log"
+  dashboard_refresh_hz: 2     # terminal dashboard updates per second
+  stats_window_trades: 50     # rolling window for win-rate stats
